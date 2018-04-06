@@ -8,6 +8,14 @@ from array import array
 import shutil
 import subprocess
 
+def makeDirRecursive(dire):
+	cumul=""	
+	for subDir in dire.split("/"):
+		cumul=cumul+subDir+"/"
+		if not os.path.exists(cumul):
+			os.mkdir(cumul)
+
+	
 
 def getTrees(runNum):
 	t = ROOT.TChain("t")
@@ -84,39 +92,76 @@ def replaceTableRow(tableName,runNum,ichan,HV,mean,err,rate):
 	#copy tmp to overwrite original file
 	shutil.move(tmpName,tableName)
 
-def copyPlot(runNum, ichan,filename,field,measure):
+
+
+def copyPlot(runNum, ichan,filename,field,measure,isCosmic=True):
 	##Delete old measure plots for this run and channel
 	if field:
 		bstring = "3p8"
 	else:
 		bstring = "0"
-	webDir = "/Users/heller/Sites/milliqan/field%s/channel%i/"%(bstring,ichan) 
-	if not measure:
-		webDir=webDir+"Run%s/"%runNum
 
-	if not os.path.exists(webDir):
-		os.mkdir(webDir)
+	if int(runNum)>250:
+		bstring="postYETS"
+
+	webDir = cfg.webBaseDir + "field%s/channel%i/"%(bstring,ichan)
+	if not isCosmic:
+		webDir = webDir+"SPE/"
 
 	if measure:
-		oldFiles= webDir+"Run%s*_chan%i_*.png" % (runNum,ichan)
-	#	print oldFiles 
-		for f in glob.glob(oldFiles):
-			#print f
-			os.remove(f)
+		webDir=webDir+"Measure/"
+	else:
+		webDir=webDir+"Run%s/"%runNum
+#"/Users/heller/Sites/milliqan/field%s/channel%i/"%(bstring,ichan)
+	makeDirRecursive(webDir)
+	#if not os.path.exists(webDir):
+	#	os.mkdir(webDir)
+
+	if isCosmic: zoom = int(filename.split("zoom")[1].split(".pdf")[0])
+	else: zoom = int(filename.replace("fullrange","").replace("_vetoOtherChan","").split("zoom")[1].split(".pdf")[0])
+	var = filename.split("Run%s_" % runNum)[-1].split("_ch")[0].replace("cosmic_","")
+#	print var
+	#print "zoom is",str(zoom)
+	extraSel=""
+	if not isCosmic and "heightgt" in filename:
+		extraSel = "heightgt"
+	# print filename
+	# print extraSel
+	if measure:
+		oldFiles= webDir+"Run%s_%s_ch%i_*%s*.png" % (runNum,var,ichan,extraSel)
+	else:
+		oldFiles= webDir+"Run%s_%s_ch%i*%s*_zoom%i*.png" % (runNum,var,ichan,extraSel,zoom)
+#	print filename,measure
+#	print oldFiles
+	for f in glob.glob(oldFiles):
+		# print f
+		os.remove(f)
+	if measure:
+		oldFiles= webDir+"log/Run%s_%s_ch%i_*%s*log.png" % (runNum,var,ichan,extraSel)
+	else:
+		oldFiles= webDir+"log/Run%s_%s_ch%i*%s*_zoom%i*_log.png" % (runNum,var,ichan,extraSel,zoom)
+	for f in glob.glob(oldFiles):
+		#print f
+		os.remove(f)
 	##Copy .png file to web directory
 	#filename=filename.replace(".pdf",".png")
-	subprocess.check_output(['bash','-c','source ~/.bashrc && pdftopng %s'%filename])
+	#subprocess.check_output(['bash','-c','source ~/.bashrc && pdftopng %s'%filename])
 	
 	baseFileName= filename.split("/")[-1].replace(".pdf",".png")
 	if "cosmic" in baseFileName:
 		baseFileName = baseFileName.replace("cosmic_","")
 
-	shutil.move(filename.replace(".pdf",".png"),webDir+baseFileName)
+	subprocess.call(["cp",filename.replace(".pdf",".png"),webDir+baseFileName])
+	if ".pdf" in filename:
+		webDir = webDir+"log/"
+		makeDirRecursive(webDir)
+		subprocess.call(["cp",filename.replace(".pdf","_log.png"),webDir+baseFileName.replace(".png","_log.png")])
+	#shutil.move(filename.replace(".pdf",".png"),webDir+baseFileName)
 	#subprocess.call(["cp", filename, measureFilename])
 	#subprocess.call(["cp", filename.replace(".png","_log.png"), measureFilename.replace(".root","_log.root")])
 
 
-def printTH1s(hists,legTitles,filename,runDuration=1,findMean=False,cosmicMode=False,printIntegral=False,thresh=500.,useNarrowRange=True, savePNG=False):
+def printTH1s(hists,legTitles,filename,runDuration=1,findMean=False,cosmicMode=False,printIntegral=False,thresh=500.,useNarrowRange=True, savePNG=True):
 	#print findMean
 	c = ROOT.TCanvas()
 	c.SetGrid()
@@ -147,7 +192,8 @@ def printTH1s(hists,legTitles,filename,runDuration=1,findMean=False,cosmicMode=F
 	if cosmicMode:
 		if maxy > 2.*hists[-1].GetMaximum():
 			maxy = 2.*hists[-1].GetMaximum()
-
+		maxy = 420 
+	
 	coordStart=0
 	coordEnd=0
 	mean=0
@@ -229,8 +275,12 @@ def printTH1s(hists,legTitles,filename,runDuration=1,findMean=False,cosmicMode=F
 			if i == 0: h.Draw("ep")
 			else: h.Draw("ep same")
 
-	leg.Draw("same")
+		if (not findMean) and "area" in filename:
+			c.Print(filename.replace(".pdf","layer%i.pdf"%i))
 
+	#leg.Draw("same")
+	#hists[-1].Draw("hist")
+	c.Print(filename.replace(".pdf","noMean.pdf"))
 	if findMean:
 		line = ROOT.TLine()
 		line.SetLineColor(hists[-1].GetLineColor())
@@ -251,8 +301,9 @@ def printTH1s(hists,legTitles,filename,runDuration=1,findMean=False,cosmicMode=F
 		if cosmicMode:tla.DrawLatexNDC(0.65,0.55,"Rate: %0.3f Hz" %(rate))
 
 
-	if not os.path.exists(os.path.dirname(filename)):
-		os.mkdir(os.path.dirname(filename))
+	makeDirRecursive(os.path.dirname(filename))
+	#if not os.path.exists(os.path.dirname(filename)):
+	#	os.mkdir(os.path.dirname(filename))
 
 	c.Print(filename)
 	if savePNG: c.Print(filename.replace(".pdf",".png"))

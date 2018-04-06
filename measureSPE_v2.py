@@ -23,6 +23,7 @@ measureCosmic= ((int(runNum) < 66 or int(runNum)>70)) and runNum != "115" and ru
 if int(runNum) == 156 or int(runNum) == 157:
 	measureCosmic=False
 if int(runNum) >= 193: measureCosmic=False
+if int(runNum)==425: measureCosmic=True
 write=False
 bfield=True
 tableName = "tables/table_run%s_3p8T.csv"%runNum
@@ -44,9 +45,10 @@ u.defineColors()
 
 t=u.getTrees(runNum)
 print "N entries:",t.GetEntries()
-startTime=t.GetMinimum("event_time")
-endTime=t.GetMaximum("event_time")
+startTime=t.GetMinimum("event_time_b0")
+endTime=t.GetMaximum("event_time_b0")
 runDuration = endTime - startTime
+#if runNum=="425": runDuration= 9*3600
 
 types = ["ET","R878","R7725"]
 variables= ["height","area","duration"]#,"delay","dtstart"]
@@ -67,14 +69,14 @@ maxx=  [[[60,60,60],[300,300,300]], #height
 
 
 if measureCosmic:
-	nbins= [[[60,60,60],[60,60,60]], #height
+	nbins= [[[40,40,40],[50,50,50],[50,50,50]], #height
 		[[30,30,30],[30,30,30],[30,30,30],[30,30,30],[30,30,30],[30,30,30]], #area
 		[[50,50,50]]]#duration
-	minx=  [[[0,0,0],[0,0,0]],#height
+	minx=  [[[0,0,0],[0,0,0],[0,0,0]],#height
 			[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],#area
 			#[[0,0,0],[0,0,0],[1000,1000,1000],[4000,5000,4000],[2000,2000,2000],[0,0,0]],#area
 			[[0,0,0]]]#duration
-	maxx=  [[[500,500,500],[1260,1260,1260]], #height
+	maxx=  [[[200,200,200],[500,500,500],[1260,1260,1260]], #height
 			[[8000,5000,5000],[20000,10000,10000],[50000,30000,20000],[180000,90000,120000],[60000,60000,60000],[4000,2500,2500]], #area
 			#[[8000,5000,5000],[20000,10000,10000],[50000,30000,30000],[180000,100000,120000],[60000,60000,60000],[4000,2500,2500]], #area
 			[[250,250,250]]] #duration
@@ -119,7 +121,7 @@ if measureCosmic:
 
 colIndices= [6,11,9] ## define colors based on channel map
 
-additionalSels=[ [["","",""]] for x in range(16)]
+additionalSels=[ [["","",""]] for x in range(32)]
 
 R7725HV= 1600
 if int(runNum) in cfg.tableHV: 
@@ -293,14 +295,16 @@ if not measureCosmic:
 	measureSels[10]=1
 	measureSels[11]=1
 
-topChannels= [2,3,6,7,10,11]
+#topChannels= [2,3,6,7,10,11]
+slices = [[0,24,8],[1,25,9],[6,16,12],[7,17,13],[2,22,4],[3,23,5]]
 
 #if write:
 #	table = open("tableSPE.csv","a")
-for ichan in range(16):
+for ichan in range(32):
 	if oneChan!=-1 and ichan!=oneChan: continue
-	if measureCosmic and ichan>=12: continue
-	if ichan==0 or ichan==13: continue
+	#if measureCosmic and ichan>=12: continue
+	if ichan==15: continue
+	if cfg.tubeSpecies[ichan] =="veto": continue
 	#if ichan!=6: continue
 	#if ichan<8 or ichan>11: continue
 	for ivar,var in enumerate(variables):
@@ -318,22 +322,16 @@ for ichan in range(16):
 				for isel,sel in enumerate(sels):
 					thissel = sel
 					if "vert" in thissel:
-						topChan=ichan
-						botChan=0
-						if ichan in topChannels:
-							botChan=topChan-2
-							if ichan==2: botChan=1
-							if ichan==10 and bfield: botChan=9
-							thissel= thissel.replace("vert", "Sum$(area>%.f&&chan==%i)>0" % (cfg.getCosmicThresh(int(runNum),botChan),botChan))
+						for sli in slices:
+							if ichan in sli:
+								vertSel=""
+								for ics in sli:
+									if ics != ichan:
+										if vertSel != "": vertSel=vertSel+"&&"
+										vertSel = vertSel + "Sum$(area>%.f&&chan==%i)>0" % (cfg.getCosmicThresh(int(runNum),ics),ics)
+								thissel= thissel.replace("vert",vertSel)
+								break
 
-						else:
-							topChan=ichan+2
-							botChan=ichan
-							#if ichan==9: topChan=10
-							thissel= thissel.replace("vert", "Sum$(area>%.f&&chan==%i)>0" % (cfg.getCosmicThresh(int(runNum),topChan),topChan))
-
-
-						#thissel= thissel.replace("vert", "Sum$(area>%.f&&chan==%i)>0&&Sum$(area>%.f&&chan==%i)>0" % (cfg.getCosmicThresh(int(runNum),topChan),topChan,cfg.getCosmicThresh(int(runNum),botChan),botChan))
 
 					selection = "chan==%i&&%s" % (ichan,thissel)
 					vetoSel=""

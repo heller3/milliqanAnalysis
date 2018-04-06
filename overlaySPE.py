@@ -16,10 +16,11 @@ runNames= ["v6","v7"]#["3.8 T","0 T"]#
 vetoOtherChannels=True
 
 runString = "Run"+runs[0]+"_"+runs[1]
-if not os.path.exists("plots/"+runString):
-	os.mkdir("plots/"+runString)
-if not os.path.exists("plots/"+runString+"/measure"):
-	os.mkdir("plots/"+runString+"/measure")
+u.makeDirRecursive("plots/"+runString+"/measure")
+# if not os.path.exists("plots/"+runString):
+# 	os.mkdir("plots/"+runString)
+# if not os.path.exists("plots/"+runString+"/measure"):
+# 	os.mkdir("plots/"+runString+"/measure")
 
 u.defineColors()
 trees=[]
